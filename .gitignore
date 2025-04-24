@@ -2,3 +2,6 @@
 .git/
 __pycache__/
 *.pyc
+.venv/
+/songs_to_keep.txt
+/songs_to_remove.txt

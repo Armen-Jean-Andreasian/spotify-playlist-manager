@@ -8,17 +8,19 @@ class PlaylistManager:
         playlist_path: str,
         clarifying_question: str
     ):
-        self.clarifying_question = clarifying_question + 'y/n? : '
-        self.songs: tuple[tuple[str, str]] = self._load_playlist(playlist_path)
+        self.clarifying_question = clarifying_question + 'y/n? | '
+        self.question = lambda song : str(clarifying_question + "| " + " ".join(song) + " | y/n? : ")
+
+        self.songs: set[tuple[str, str]] = self._load_playlist(playlist_path) # set to avoid duplicates
 
         self._songs_to_keep = []
         self._songs_to_remove = []
 
     @staticmethod
-    def _load_playlist(playlist_path: str, number_of_rows: int = None) -> tuple[tuple[str, str]]:
+    def _load_playlist(playlist_path: str, number_of_rows: int = 2) -> set[tuple[str, str]]:
         # for testing purposes. Just hardcode an int for number_of_rows
         df = pandas.read_csv(playlist_path, nrows=number_of_rows) if number_of_rows else pandas.read_csv(playlist_path)
-        return tuple(zip(df['Artist Name(s)'], df['Track Name']))
+        return set(zip(df['Artist Name(s)'], df['Track Name']))
 
     def sort_playlist(self, songs=None):
         """
@@ -28,8 +30,9 @@ class PlaylistManager:
         songs = self.songs if songs is None else songs
 
         for index, song in enumerate(songs):
+            question = str(self.clarifying_question + "".join(song))
 
-            user_choice = input(f"{self.clarifying_question, *song}").lower().strip()
+            user_choice = input(self.question(song=song)).lower().strip()
 
             if user_choice == 'y':
                 self._songs_to_keep.append(song)
@@ -46,21 +49,22 @@ class PlaylistManager:
                     file.write(f"{song[0]}, {song[1]}\n")
 
         tasks = [
-            save_to_file, songs_to_keep_path, self._songs_to_keep,
-            save_to_file, songs_to_remove_path, self._songs_to_remove
+            (save_to_file, songs_to_keep_path, self._songs_to_keep),
+            (save_to_file, songs_to_remove_path, self._songs_to_remove)
         ]
 
         with ThreadPoolExecutor() as executor:
-            executor.map(lambda callback, path, songs: callback(path, songs), *tasks)
+            futures = [executor.submit(callback, path, songs) for callback, path, songs in tasks]
+            for future in futures:
+                future.result()
 
         print('Results saved successfully.')
 
-
-playlist_manager = PlaylistManager(
-    playlist_path='tests/example.csv',
-    clarifying_question='Does the song belong to this playlist? '
-)
-
-playlist_manager.sort_playlist()
-playlist_manager.save_results()
+if __name__ == '__main__':
+    playlist_manager = PlaylistManager(
+        playlist_path='tests/example.csv',
+        clarifying_question='Does the song belong to this playlist? '
+    )
+    playlist_manager.sort_playlist()
+    playlist_manager.save_results()
 
